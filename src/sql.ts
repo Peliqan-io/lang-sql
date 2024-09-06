@@ -1,10 +1,10 @@
-import {continuedIndent, indentNodeProp, foldNodeProp, LRLanguage, LanguageSupport} from "@codemirror/language"
-import {Extension} from "@codemirror/state"
-import {Completion, CompletionSource} from "@codemirror/autocomplete"
-import {styleTags, tags as t} from "@lezer/highlight"
-import {parser as baseParser} from "./sql.grammar"
-import {tokens, Dialect, tokensFor, SQLKeywords, SQLTypes, dialect} from "./tokens"
-import {completeFromSchema, completeKeywords} from "./complete"
+import { continuedIndent, indentNodeProp, foldNodeProp, LRLanguage, LanguageSupport } from "@codemirror/language"
+import { EditorState, Extension } from "@codemirror/state"
+import { Completion, CompletionSource } from "@codemirror/autocomplete"
+import { styleTags, tags as t } from "@lezer/highlight"
+import { parser as baseParser } from "./sql.grammar"
+import { tokens, Dialect, tokensFor, SQLKeywords, SQLTypes, dialect } from "./tokens"
+import { completeFromSchema, completeKeywords } from "./complete"
 
 let parser = baseParser.configure({
   props: [
@@ -12,8 +12,8 @@ let parser = baseParser.configure({
       Statement: continuedIndent()
     }),
     foldNodeProp.add({
-      Statement(tree, state) { return {from: Math.min(tree.from + 100, state.doc.lineAt(tree.from).to), to: tree.to} },
-      BlockComment(tree) { return {from: tree.from + 2, to: tree.to - 2} }
+      Statement(tree, state) { return { from: Math.min(tree.from + 100, state.doc.lineAt(tree.from).to), to: tree.to } },
+      BlockComment(tree) { return { from: tree.from + 2, to: tree.to - 2 } }
     }),
     styleTags({
       Keyword: t.keyword,
@@ -97,7 +97,7 @@ export class SQLDialect {
     readonly language: LRLanguage,
     /// The spec used to define this dialect.
     readonly spec: SQLDialectSpec
-  ) {}
+  ) { }
 
   /// Returns the language for this dialect as an extension.
   get extension() { return this.language.extension }
@@ -108,11 +108,11 @@ export class SQLDialect {
     let language = LRLanguage.define({
       name: "sql",
       parser: parser.configure({
-        tokenizers: [{from: tokens, to: tokensFor(d)}]
+        tokenizers: [{ from: tokens, to: tokensFor(d) }]
       }),
       languageData: {
-        commentTokens: {line: "--", block: {open: "/*", close: "*/"}},
-        closeBrackets: {brackets: ["(", "[", "{", "'", '"', "`"]}
+        commentTokens: { line: "--", block: { open: "/*", close: "*/" } },
+        closeBrackets: { brackets: ["(", "[", "{", "'", '"', "`"] }
       }
     })
     return new SQLDialect(d, language, spec)
@@ -125,8 +125,8 @@ export class SQLDialect {
 /// deeper levels, or a `{self, children}` object that assigns a
 /// completion option to use for its parent property, when the default option
 /// (its name as label and type `"type"`) isn't suitable.
-export type SQLNamespace = {[name: string]: SQLNamespace}
-  | {self: Completion, children: SQLNamespace}
+export type SQLNamespace = { [name: string]: SQLNamespace }
+  | { self: Completion, children: SQLNamespace }
   | readonly (Completion | string)[]
 
 /// Options used to configure an SQL extension.
@@ -148,19 +148,23 @@ export interface SQLConfig {
   /// completed directly at the top level.
   defaultSchema?: string,
   /// When set to true, keyword completions will be upper-case.
-  upperCaseKeywords?: boolean
+  upperCaseKeywords?: boolean,
+  // Custom render function for each completion.
+  render?: (
+    item: any
+  ) => HTMLDivElement;
 }
 
 /// Returns a completion source that provides keyword completion for
 /// the given SQL dialect.
-export function keywordCompletionSource(dialect: SQLDialect, upperCase = false): CompletionSource {
-  return completeKeywords(dialect.dialect.words, upperCase)
+export function keywordCompletionSource(dialect: SQLDialect, upperCase = false, render?: (item: any) => HTMLDivElement, boost?: number): CompletionSource {
+  return completeKeywords(dialect.dialect.words, upperCase, render, boost)
 }
 
 /// FIXME remove on 1.0 @internal
-export function keywordCompletion(dialect: SQLDialect, upperCase = false): Extension {
+export function keywordCompletion(dialect: SQLDialect, upperCase = false, render?: (item: any) => HTMLDivElement, boost?: number): Extension {
   return dialect.language.data.of({
-    autocomplete: keywordCompletionSource(dialect, upperCase)
+    autocomplete: keywordCompletionSource(dialect, upperCase, render, boost)
   })
 }
 
@@ -168,8 +172,8 @@ export function keywordCompletion(dialect: SQLDialect, upperCase = false): Exten
 /// for the given configuration.
 export function schemaCompletionSource(config: SQLConfig): CompletionSource {
   return config.schema ? completeFromSchema(config.schema, config.tables, config.schemas,
-                                            config.defaultTable, config.defaultSchema,
-                                            config.dialect || StandardSQL)
+    config.defaultTable, config.defaultSchema,
+    config.dialect || StandardSQL, config.render)
     : () => null
 }
 

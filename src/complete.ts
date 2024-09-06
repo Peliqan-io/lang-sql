@@ -1,9 +1,9 @@
-import {Completion, CompletionContext, CompletionSource, completeFromList, ifNotIn} from "@codemirror/autocomplete"
-import {EditorState, Text} from "@codemirror/state"
-import {syntaxTree} from "@codemirror/language"
-import {SyntaxNode} from "@lezer/common"
-import {Type, Keyword} from "./sql.grammar.terms"
-import {type SQLDialect, SQLNamespace} from "./sql"
+import { Completion, CompletionContext, CompletionSource, completeFromList, ifNotIn } from "@codemirror/autocomplete"
+import { EditorState, Text } from "@codemirror/state"
+import { syntaxTree } from "@codemirror/language"
+import { SyntaxNode } from "@lezer/common"
+import { Type, Keyword } from "./sql.grammar.terms"
+import { type SQLDialect, SQLNamespace } from "./sql"
 
 function tokenBefore(tree: SyntaxNode) {
   let cursor = tree.cursor().moveTo(tree.from, -1)
@@ -32,7 +32,7 @@ function pathFor(doc: Text, id: SyntaxNode) {
 }
 
 function parentsFor(doc: Text, node: SyntaxNode | null) {
-  for (let path = [];;) {
+  for (let path = []; ;) {
     if (!node || node.name != ".") return path
     let name = tokenBefore(node)
     if (!plainID(name)) return path
@@ -45,14 +45,16 @@ function sourceContext(state: EditorState, startPos: number) {
   let pos = syntaxTree(state).resolveInner(startPos, -1)
   let aliases = getAliases(state.doc, pos)
   if (pos.name == "Identifier" || pos.name == "QuotedIdentifier" || pos.name == "Keyword") {
-    return {from: pos.from,
-            quoted: pos.name == "QuotedIdentifier" ? state.doc.sliceString(pos.from, pos.from + 1) : null,
-            parents: parentsFor(state.doc, tokenBefore(pos)),
-            aliases}
+    return {
+      from: pos.from,
+      quoted: pos.name == "QuotedIdentifier" ? state.doc.sliceString(pos.from, pos.from + 1) : null,
+      parents: parentsFor(state.doc, tokenBefore(pos)),
+      aliases
+    }
   } if (pos.name == ".") {
-    return {from: startPos, quoted: null, parents: parentsFor(state.doc, pos), aliases}
+    return { from: startPos, quoted: null, parents: parentsFor(state.doc, pos), aliases }
   } else {
-    return {from: startPos, quoted: null, parents: [], empty: true, aliases}
+    return { from: startPos, quoted: null, parents: [], empty: true, aliases }
   }
 }
 
@@ -88,20 +90,20 @@ function getAliases(doc: Text, at: SyntaxNode) {
 
 function maybeQuoteCompletions(quote: string | null, completions: readonly Completion[]) {
   if (!quote) return completions
-  return completions.map(c => ({...c, label: c.label[0] == quote ? c.label : quote + c.label + quote, apply: undefined}))
+  return completions.map(c => ({ ...c, label: c.label[0] == quote ? c.label : quote + c.label + quote, apply: undefined }))
 }
 
 const Span = /^\w*$/, QuotedSpan = /^[`'"]?\w*[`'"]?$/
 
-function isSelfTag(namespace: SQLNamespace): namespace is {self: Completion, children: SQLNamespace} {
+function isSelfTag(namespace: SQLNamespace): namespace is { self: Completion, children: SQLNamespace } {
   return (namespace as any).self && typeof (namespace as any).self.label == "string"
 }
 
 class CompletionLevel {
   list: Completion[] = []
-  children: {[name: string]: CompletionLevel} | undefined = undefined
+  children: { [name: string]: CompletionLevel } | undefined = undefined
 
-  constructor(readonly idQuote: string, readonly idCaseInsensitive: boolean) {}
+  constructor(readonly idQuote: string, readonly idCaseInsensitive: boolean) { }
 
   child(name: string) {
     let children = this.children || (this.children = Object.create(null))
@@ -113,7 +115,7 @@ class CompletionLevel {
 
   maybeChild(name: string) {
     return this.children ? this.children[name] : null
-  }    
+  }
 
   addCompletion(option: Completion) {
     let found = this.list.findIndex(o => o.label == option.label)
@@ -132,11 +134,11 @@ class CompletionLevel {
     } else if (isSelfTag(namespace)) {
       this.addNamespace(namespace.children)
     } else {
-      this.addNamespaceObject(namespace as {[name: string]: SQLNamespace})
+      this.addNamespaceObject(namespace as { [name: string]: SQLNamespace })
     }
   }
 
-  addNamespaceObject(namespace: {[name: string]: SQLNamespace}) {
+  addNamespaceObject(namespace: { [name: string]: SQLNamespace }) {
     for (let name of Object.keys(namespace)) {
       let children = namespace[name], self: Completion | null = null
       let parts = name.replace(/\\?\./g, p => p == "." ? "\0" : p).split("\0")
@@ -155,8 +157,8 @@ class CompletionLevel {
 }
 
 function nameCompletion(label: string, type: string, idQuote: string, idCaseInsensitive: boolean): Completion {
-  if ((new RegExp("^[a-z_][a-z_\\d]*$", idCaseInsensitive ? "i" : "")).test(label)) return {label, type}
-  return {label, type, apply: idQuote + label + idQuote}
+  if ((new RegExp("^[a-z_][a-z_\\d]*$", idCaseInsensitive ? "i" : "")).test(label)) return { label, type }
+  return { label, type, apply: idQuote + label + idQuote }
 }
 
 // Some of this is more gnarly than it has to be because we're also
@@ -164,9 +166,10 @@ function nameCompletion(label: string, type: string, idQuote: string, idCaseInse
 // supplying the schema (dotted property names for schemas, separate
 // `tables` and `schemas` completions).
 export function completeFromSchema(schema: SQLNamespace,
-                                   tables?: readonly Completion[], schemas?: readonly Completion[],
-                                   defaultTableName?: string, defaultSchemaName?: string,
-                                   dialect?: SQLDialect): CompletionSource {
+  tables?: readonly Completion[], schemas?: readonly Completion[],
+  defaultTableName?: string, defaultSchemaName?: string,
+  dialect?: SQLDialect,
+  render?: (item: any) => HTMLDivElement): CompletionSource {
   let idQuote = dialect?.spec.identifierQuotes?.[0] || '"'
   let top = new CompletionLevel(idQuote, !!dialect?.spec.caseInsensitiveIdentifiers)
   let defaultSchema = defaultSchemaName ? top.child(defaultSchemaName) : null
@@ -177,7 +180,7 @@ export function completeFromSchema(schema: SQLNamespace,
   if (defaultTableName) top.addCompletions((defaultSchema || top).child(defaultTableName).list)
 
   return (context: CompletionContext) => {
-    let {parents, from, quoted, empty, aliases} = sourceContext(context.state, context.pos)
+    let { parents, from, quoted, empty, aliases } = sourceContext(context.state, context.pos)
     if (empty && !context.explicit) return null
     if (aliases && parents.length == 1) parents = aliases[parents[0]] || parents
     let level = top
@@ -194,22 +197,24 @@ export function completeFromSchema(schema: SQLNamespace,
     let quoteAfter = quoted && context.state.sliceDoc(context.pos, context.pos + 1) == quoted
     let options = level.list
     if (level == top && aliases)
-      options = options.concat(Object.keys(aliases).map(name => ({label: name, type: "constant"})))
+      options = options.concat(Object.keys(aliases).map(name => ({ label: name, type: "constant" })))
     return {
       from,
       to: quoteAfter ? context.pos + 1 : undefined,
       options: maybeQuoteCompletions(quoted, options),
-      validFor: quoted ? QuotedSpan : Span
+      validFor: quoted ? QuotedSpan : Span,
+      render
     }
   }
 }
 
-export function completeKeywords(keywords: {[name: string]: number}, upperCase: boolean) {
-  let completions =  Object.keys(keywords).map(keyword => ({
+export function completeKeywords(keywords: { [name: string]: number }, upperCase: boolean, renderKeyword?: (item: any) => HTMLDivElement, boost: number = -1): CompletionSource {
+  let completions = Object.keys(keywords).map(keyword => ({
     label: upperCase ? keyword.toUpperCase() : keyword,
     type: keywords[keyword] == Type ? "type" : keywords[keyword] == Keyword ? "keyword" : "variable",
-    boost: -1
+    boost: boost,
+    render: renderKeyword,
   }))
   return ifNotIn(["QuotedIdentifier", "SpecialVar", "String", "LineComment", "BlockComment", "."],
-                 completeFromList(completions))
+    completeFromList(completions))
 }
